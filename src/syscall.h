@@ -20,7 +20,8 @@ typedef enum {
 	SYSCALL_READ,
 	SYSCALL_WRITE,
 	SYSCALL_LSEEK,
-	SYSCALL_CLOSE
+	SYSCALL_CLOSE,
+    SYSCALL_WINDOW,
 } syscall_t;
 
 typedef enum {
@@ -64,5 +65,8 @@ static inline int lseek( int fd, int offset, int whence )
 
 static inline int close( int fd )
 { return syscall( SYSCALL_CLOSE, fd, 0, 0, 0, 0 ); }
+
+static inline int window( uint32_t w )
+{ return syscall( SYSCALL_WINDOW, fw, 0, 0, 0, 0 ); }
 
 #endif

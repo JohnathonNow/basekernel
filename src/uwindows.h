@@ -18,5 +18,7 @@ window_t* window_create();
 void window_free(window_t*);
 void window_line(window_t*, uint32_t, uint32_t, uint32_t, uint32_t);
 void window_text(window_t*, char*, uint32_t, uint32_t);
+void window_reset(window_t*);
+void window_draw(window_t*);
 
 #endif
