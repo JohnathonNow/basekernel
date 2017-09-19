@@ -81,6 +81,53 @@ memtest2:
 	mov	%ax, total_memory-_start
 memdone:	
 
+# Try to read the list of available video modes using VBE interrupts.
+videoquery:
+	mov	%ds, %ax		# Set up the extra segment
+	mov	%ax, %es		# with the data segment
+
+	mov	$(vbe_info-_start),%di
+	mov	$0x4f00, %ax
+	mov	%bx, %cx
+	int	$0x10
+	cmp	$0x004f, %ax
+	jne	videofailed
+    mov (vbe_info-_start+0x0E), %si
+   
+    _loopvq:
+        push %es
+        mov (vbe_info-_start+0x10), %es
+        #load in next video mode from the list
+        movw %es:(%si), %dx
+        pop %es
+        #check if it is the end or not
+        cmp %dx, 0xFFFF
+        je videofailed #if so, well, we failed
+        mov %dx, %cx
+        mov	$(video_info-_start),%di
+        mov	$0x4f01, %ax
+        int	$0x10
+        cmp	$0x004f, %ax
+        jne	videofailed
+        #add checks for if mode is supported
+        movb (video_bpp-_start), %al
+        #Add two to our search
+        add $0x02, %si
+        #check if our mode is the right bit depth - 24 - if so, don't loop
+        cmp %al, 0x18
+        jne _loopvq
+    jmp videofailed
+
+
+    #finally set the mode
+    mov %cx, %bx
+ 	mov	$0x4f02, %ax
+	int	$0x10
+	cmp	$0x004f, %ax
+	je	videodone
+
+
+
 # Now, set the video mode using VBE interrupts.
 # Keep trying until we find one that works.
 
@@ -115,7 +162,7 @@ video800:
 	mov	$0x4f02, %ax
  	mov	$0x4115, %bx
 	int	$0x10
-	cmp	$0x004f, %ax
+	cmpb    $0x4f, %ah
 	je	videodone
 video640:
 	mov	$0x4f02, %ax
@@ -200,6 +247,12 @@ bios_putchar:
 	pop	%ax
 	ret
 
+.align 4
+vbe_info:
+    .byte   'V','B','E','2'
+.rept 508
+    .byte   0
+.endr
 # The video_info structure is filled in by a BIOS
 # call above, and is used to record the basic video
 # layout for the graphics subsystem.  See page 30
@@ -220,8 +273,12 @@ video_xres:
 .global video_yres
 video_yres:
 	.word	0
-	.byte	0,0,0,0,0,0,0,0,0
-	.byte	0,0,0,0,0,0,0,0,0
+video_dnc:
+    .byte   0,0,0
+video_bpp:
+    .byte   0
+	.byte	0,0,0,0,0,0,0,0,0,0
+	.byte	0,0,0,0
 .global video_buffer
 video_buffer:
 	.long	0
