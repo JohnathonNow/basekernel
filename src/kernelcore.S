@@ -86,7 +86,8 @@ videoquery:
 	mov	%ds, %ax		# Set up the extra segment
 	mov	%ax, %es		# with the data segment
 
-	mov	$(vbe_info-_start),%di
+    #mov (vbe_info-_start), %es
+	mov	(vbe_info-_start), %di
 	mov	$0x4f00, %ax
 	mov	%bx, %cx
 	int	$0x10
@@ -95,15 +96,17 @@ videoquery:
     mov (vbe_info-_start+0x0E), %si
    
     _loopvq:
-        push %es
-        mov (vbe_info-_start+0x10), %es
+        #push %es
+        mov	(vbe_info-_start+0x10), %es
         #load in next video mode from the list
         movw %es:(%si), %dx
-        pop %es
+        #pop %es
         #check if it is the end or not
         cmp %dx, 0xFFFF
         je videofailed #if so, well, we failed
         mov %dx, %cx
+        mov	%ds, %ax		# Set up the extra segment
+        mov	%ax, %es		# with the data segment
         mov	$(video_info-_start),%di
         mov	$0x4f01, %ax
         int	$0x10
