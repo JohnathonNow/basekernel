@@ -257,11 +257,26 @@ For technical reasons, the X86 requires that segmentation be turned on whenever 
 
 ### Graphics
 
+At boot, the following video modes are tried:
+
+|Mode |Resolution|Colors|
+|-----|----------|------|
+|0x118|1024x768  |  16M |
+|0x115|800x600   |  16M |
+|0x112|640x480   |  16M |
+|0x111|640x480   |  64K |
+
+Note that the `0x111` video mode is nearly unusable, and only exists so that VMWare Player can boot. 
+In the future, selecting a video mode from the list of available modes is probably preferable to simply trying
+a number of different, potentially unsupported, modes.
+
+At boot, the root graphics window is opened. This window contains the entire visible screen, and will never close. 
+
 Each process has an array of up to five windows. When a process is created,
-it inherits the windows of its parent, except for the initial process which has one window that fills the screen.
+it inherits the windows of its parent, except for the initial process which has the root window open.
 A process may create new windows through the `draw_create` system call, which creates a new window that is a subset of a window
 already open by the process. In this way, a process' windows are sandboxed - a process cannot create a window larger than
-what its parent has passed on to it. Windows are reference counted, and when all processes owning a window are dead, 
+what its parent has passed on to it. Windows are reference-counted, and when all processes owning a window are dead, 
 the window is freed.
 
 Draws are issued to the window through the `draw_write` system call. The `draw_write` system call sends a null-terminated buffer of 
@@ -275,14 +290,17 @@ will only change when a command is issued to change it.
 Each `graphics_command` is a struct containing an integer identifying the type of command followed by an array of four integers
 providing the arguments for the command. Not every command uses all four arguments, and those that don't simply ignore the
 extra arguments. The list of valid commands is as follows:  
-```
-GRAPHICS_WINDOW  W        sets the draw window to W
-GRAPHICS_COLOR   R G B    sets the draw color to (R, G, B)
-GRAPHICS_RECT    X Y W H  draws a rectangle with width W and height H at (X, Y)
-GRAPHICS_CLEAR   X Y W H  clears a rectangle with width W and height H at (X, Y)
-GRAPHICS_LINE    X Y W H  draws a line starting at (X, Y) that travels W pixels horizontally and H pixels vertically
-GRAPHICS_TEXT    X Y S    draws a string S at (X, Y) (note that S is a char*, so strings are passed by reference)
-```
+
+|Command Name      | Arguments | Description |
+|------------------|-----------|-------------|
+|`GRAPHICS_WINDOW` | W         | sets the draw window to W |
+|`GRAPHICS_COLOR`  | R G B     | sets the draw color to (R, G, B) |
+|`GRAPHICS_RECT`   | X Y W H   | draws a rectangle with width W and height H at (X, Y) |
+|`GRAPHICS_CLEAR`  | X Y W H   | clears a rectangle with width W and height H at (X, Y) |
+|`GRAPHICS_LINE`   | X Y W H   | draws a line starting at (X, Y) that travels W pixels horizontally and H pixels vertically |
+|`GRAPHICS_TEXT`   | X Y S     | draws a string S at (X, Y) (note that S is a char*, so strings are passed by reference) |
+
+
 
 ### Processes
 
@@ -300,12 +318,20 @@ A process is killed in any of three cases:
 
 When a process is killed, it is removed from any process queue it might be in (i.e. the ready queue or an I/O queue) and placed in the
 grave queue. Additionally, any child of that process is killed (as well as any of their children, etc.). A process in the grave queue
-is not cleaned up immediately, however. An immediate parent of a process can get the exit status of a process by using the
+is not cleaned up immediately, however. 
+
+An immediate parent of a process can get the exit status of a process by using the
 `process_wait` system call. This will return the exit records of the first of that process' dead children in the grave queue.
 `process_wait` takes a timeout argument, and will wait for as long as the timeout before returning with no process dead.
+`process_wait` also takes a pointer to a `process_info` struct. The `process_info` struct has three members - the pid of the
+waited on process, its exit code, and its exit reason. The exit code is set when the process calls `exit`, and is set to 0
+when a process is killed without exiting normally. The exit reason is set to `PROCESS_EXIT_NORMAL` (0) when a process calls `exit`,
+and is set to `PROCESS_EXIT_KILLED` (1) when a process is killed another way.
+
 `process_wait` does not clean the records of a process. Instead, `process_reap` must be called to discard a process completely.
 When a process is reaped, its windows' reference counters are decreased, its pagetable and kernel object are freed, and its pid is
-opened for reuse.
+opened for reuse. `process_reap` takes in a specific pid to reap. Currently, any process can reap another process, even
+if they are not a parent of the reaped process.
 
 
 ## References
