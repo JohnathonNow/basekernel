@@ -253,6 +253,61 @@ Segment 5	tss	sizeof(tss)	TSS	SUPERVISOR
 
 For technical reasons, the X86 requires that segmentation be turned on whenever paging is used.  A few key places in interrupt handling and system startup require the use of segments.  So, we set up four segments that span all of memory, and use the one with the desired privilege wherever a segment is required.  The fifth segement identifies the Task State Structure (TSS) which is where the initial setup information for entering protected mode is stored.
 
+## Features
+
+### Graphics
+
+Each process has an array of up to five windows. When a process is created,
+it inherits the windows of its parent, except for the initial process which has one window that fills the screen.
+A process may create new windows through the `draw_create` system call, which creates a new window that is a subset of a window
+already open by the process. In this way, a process' windows are sandboxed - a process cannot create a window larger than
+what its parent has passed on to it. Windows are reference counted, and when all processes owning a window are dead, 
+the window is freed.
+
+Draws are issued to the window through the `draw_write` system call. The `draw_write` system call sends a null-terminated buffer of 
+`graphics_command`s to the kernel, which then performs all of the draw operations through one system call. There is a standard
+buffer for the `graphics_command`s provided in `user-io`, which also provides functions for filling the buffer.
+The `draw_write` call is stateful, and within a call the window being drawn to is set by a command, and which window
+is being drawn to persists until either a command switches which window is being drawn to or it reaches the  end
+of the `graphics_command` buffer. The current foreground drawing color is persistent through even calls to `draw_write`, and
+will only change when a command is issued to change it.
+
+Each `graphics_command` is a struct containing an integer identifying the type of command followed by an array of four integers
+providing the arguments for the command. Not every command uses all four arguments, and those that don't simply ignore the
+extra arguments. The list of valid commands is as follows:  
+```
+GRAPHICS_WINDOW  W        sets the draw window to W
+GRAPHICS_COLOR   R G B    sets the draw color to (R, G, B)
+GRAPHICS_RECT    X Y W H  draws a rectangle with width W and height H at (X, Y)
+GRAPHICS_CLEAR   X Y W H  clears a rectangle with width W and height H at (X, Y)
+GRAPHICS_LINE    X Y W H  draws a line starting at (X, Y) that travels W pixels horizontally and H pixels vertically
+GRAPHICS_TEXT    X Y S    draws a string S at (X, Y) (note that S is a char*, so strings are passed by reference)
+```
+
+### Processes
+
+A process is created by the `process_run` system call, which takes the path to the program to run, an array of string arguments,
+and the number of arguments. These arguments must be under 255 characters in length, and are placed above the process stack
+at the time the process is created.
+
+Processes contain a process id (pid) as well as a process parent id (ppid). The pid is allocated by a next fit search
+through an array of 1024 available ids. This array also serves to allow easy lookup of processes by id.
+
+A process is killed in any of three cases:  
+    1. It performs the `exit` system call.  
+    2. It is killed by another process by the `process_kill` system call.  
+    3. Its parent is killed.  
+
+When a process is killed, it is removed from any process queue it might be in (i.e. the ready queue or an I/O queue) and placed in the
+grave queue. Additionally, any child of that process is killed (as well as any of their children, etc.). A process in the grave queue
+is not cleaned up immediately, however. An immediate parent of a process can get the exit status of a process by using the
+`process_wait` system call. This will return the exit records of the first of that process' dead children in the grave queue.
+`process_wait` takes a timeout argument, and will wait for as long as the timeout before returning with no process dead.
+`process_wait` does not clean the records of a process. Instead, `process_reap` must be called to discard a process completely.
+When a process is reaped, its windows' reference counters are decreased, its pagetable and kernel object are freed, and its pid is
+opened for reuse.
+
+
 ## References
 
 The [OS Development Wiki][1] is an excellent source of sample code and general orientation toward the topics that you need to learn. However, to get the details of each element right, you will need to dig into the source documents for each component of the system:
