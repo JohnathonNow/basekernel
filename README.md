@@ -17,7 +17,7 @@ If you want to hack code and learn about operating system, you will like Baseker
 If you are looking for a new OS to run on your laptop, then this is not what you want.
 
 This project is led by Prof. Douglas Thain at the University of Notre Dame,
-with contributions from students, particularly Jon Westhoff and Kevin Wern.
+with contributions from students, particularly John Westhoff and Kevin Wern.
 
 To learn more, see the [Basekernel Wiki](https://github.com/dthain/basekernel/wiki).
 
@@ -44,7 +44,7 @@ which ata unit the cdrom is mounted on.  Then, use the <tt>mount</tt> command
 to mount the cdrom filesystem on that unit:
 
 <pre>
-mount 2
+mount 2 cdrom
 </pre>
 
 Use the <tt>list</tt> command to examine the root directory:
